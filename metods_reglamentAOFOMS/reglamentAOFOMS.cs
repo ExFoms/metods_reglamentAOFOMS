@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.IO;
+
 public class reglamentAOFOMS
 {
     public static int handling_file_aofoms(string file, List<clsConnections> link_connections, string reglament_connections, string[] folders, ReglamentLinker reglamentLinker, out string result_comments)
