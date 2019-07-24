@@ -41,7 +41,7 @@ public class reglamentAOFOMS
                 throw new System.ArgumentException(string.Format("Не зарегистрирована версия '{0}' для вида сведений: '{1}'", version, typeVS));
             }
 
-            if (clsLibrary.execQuery_PGR_getString(ref link_connections, "postgres", String.Format("select id from buf_eir.request where filename = '{0}' and fail = false and state is not null", filename.ToUpper())) != null)
+            if (clsLibrary.execQuery_PGR_getString(ref link_connections, "postgres", String.Format("select id from buf_eir.request where filename = '{0}' and fail = false and state is not null;", filename.ToUpper())) != null)
             {
                 errors_free = false; //result = true;
                 throw new System.ArgumentException("Файл принят ранее, имена файлов должны быть уникальны");
@@ -105,12 +105,15 @@ public class reglamentAOFOMS
         }
         //меняем статус обработки пакета, если он был зарегистрирован
         if (idRequest != string.Empty)
-            clsLibrary.execQuery_PGR(ref link_connections, "postgres",
-                (result) ?
-                    string.Format("update buf_eir.request set state = {0}, count_row = {1} where id = '{2}'", (errors_free) ? "0" : "-1", count_row, idRequest)
-                    : string.Format("update buf_eir.request set fail = true where id = '{0}'", idRequest)
+            clsLibrary.execQuery_PGR(
+                ref link_connections 
+                ,"postgres"
+                ,(result) ?
+                    string.Format("update /*{2}*/ buf_eir.request set state = '{0}', count_row = {1} where id = '{2}';", (errors_free) ? "0" : "-1", count_row, idRequest)
+                    : string.Format("update /*{0}*/ buf_eir.request set fail = true where id = '{0}';", idRequest)
+                , 118000
                 );
-        if (!result) result_comments += result_comments + processing_comments + count_row.ToString();
+        if (!result) result_comments = "error: " + result_comments + processing_comments;
         return result;
     }
     /*public static int handling_file_old(string file, List<clsConnections> link_connections, string reglament_connections, string[] folders, ReglamentLinker reglamentLinker, out string result_comments)
