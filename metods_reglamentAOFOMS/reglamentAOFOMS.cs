@@ -9,10 +9,10 @@ public class reglamentAOFOMS
     public static bool handling_file(string file, List<clsConnections> link_connections, string[] folders, ReglamentLinker reglamentLinker, out string result_comments, out int count_row)
     {
         result_comments = string.Empty;
-        bool result = false;
+        bool result = true; //!!! Исключительный случай - ошибка в методе, а не в разборе файла
         count_row = 0;
-        //ist<clsConnections> link_connections = new List<clsConnections>(); link_connections.Add(new clsConnections() { active = true, connectionString = "User ID=postgres;Password=123OOO321;Host=134.0.113.192;Port=5432", name = "postgres" });
         //-------------------------------------
+        string file_response = "";
         bool errors_free = true;
         string processing_comments = string.Empty;
         string filename = Path.GetFileName(file);
@@ -26,6 +26,7 @@ public class reglamentAOFOMS
         try
         {
             mnemonic = reglamentLinker.getMnemonic();
+            file_response = string.Format(@"fail{0}-{1}.txt", mnemonic, Path.GetFileNameWithoutExtension(filename).ToUpper());// Path.Combine(folders[1], );
             typeVS = reglamentLinker.link.comment;
             XmlDocument HEADER = new XmlDocument();
             if (!clsLibrary.getTeg_HEADER(file, ref HEADER, ref version))
@@ -47,15 +48,15 @@ public class reglamentAOFOMS
                 throw new System.ArgumentException("Файл принят ранее, имена файлов должны быть уникальны");
             }
 
-            xml_object = Schemes_AOFOMS.XML_abstract_file.FromXml(
+            xml_object = XML_abstract_file.FromXml(
                 new FileStream(file, FileMode.Open, FileAccess.Read),
                 reglamentLinker.link.schemaClassRoot, 
                 Path.Combine(Path.Combine(Directory.GetParent(folders[1]).Parent.FullName, "schemes", reglamentLinker.link.nameSchema + ".xsd")), 
                 mnemonic
             );
             GC.Collect();
-            errors_free = (xml_object as Schemes_AOFOMS.XML_abstract_file)._Errors.Count == 0;
-            result = true;
+            errors_free = (xml_object as XML_abstract_file)._Errors.Count == 0;
+            //result = true;
             if (errors_free)
             {
                 idRequest = clsLibrary.execQuery_PGR_getString(ref link_connections, "postgres"
@@ -66,6 +67,9 @@ public class reglamentAOFOMS
                 {
                     case "si_schema_1_0":
                         result = processingRequest_si_schema_1_0(ref link_connections, "postgres", idRequest, ref xml_object, mnemonic, out count_row, out processing_comments, 1000);
+                        break;
+                    case "si_schema_1_1":
+                        result = processingRequest_si_schema_1_1(ref link_connections, "postgres", idRequest, ref xml_object, mnemonic, out count_row, out processing_comments, 1000);
                         break;
                     case "zldn_schema_2_0":
                         result = processingRequest_zldn_schema_2_0(ref link_connections, "postgres", idRequest, ref xml_object, mnemonic, out count_row, out processing_comments, 1000);
@@ -89,13 +93,13 @@ public class reglamentAOFOMS
         {
             try
             {
-                if (xml_object != null && (xml_object as Schemes_AOFOMS.XML_abstract_file)._Errors.Count > 0)
-                    foreach (object pr in (xml_object as Schemes_AOFOMS.XML_abstract_file)._Errors)
+                if (xml_object != null && (xml_object as XML_abstract_file)._Errors.Count > 0)
+                    foreach (object pr in (xml_object as XML_abstract_file)._Errors)
                     {
-                        list_errors.Add((pr as Schemes_AOFOMS.Protocol).N_REC + ", " +//(pr as Sp.XML.PR).OSHIB,
-                            (pr as Schemes_AOFOMS.Protocol).IM_POL + " - " + (pr as Schemes_AOFOMS.Protocol).COMMENT);
+                        list_errors.Add((pr as Protocol).N_REC + ", " +//(pr as Sp.XML.PR).OSHIB,
+                            (pr as Protocol).IM_POL + " - " + (pr as Protocol).COMMENT);
                     }
-                clsLibrary.createFileTXT_FromList(list_errors, Path.Combine(folders[1], string.Format(@"fail{0}-{1}.txt", mnemonic, Path.GetFileNameWithoutExtension(filename).ToUpper())));
+                clsLibrary.createFileTXT_FromList(list_errors, Path.Combine(folders[1],file_response ));
             }
             catch
             {
@@ -108,12 +112,16 @@ public class reglamentAOFOMS
             clsLibrary.execQuery_PGR(
                 ref link_connections 
                 ,"postgres"
-                ,(result) ?
-                    string.Format("update /*{2}*/ buf_eir.request set state = '{0}', count_row = {1} where id = '{2}';", (errors_free) ? "0" : "-1", count_row, idRequest)
-                    : string.Format("update /*{0}*/ buf_eir.request set fail = true where id = '{0}';", idRequest)
+                ,(result) ? string.Format("update buf_eir.request set state = '{0}', count_row = {1} where id = '{2}';", (errors_free) ? "0" : "-1", count_row, idRequest)
+                          : string.Format("update buf_eir.request set fail = true where id = '{0}';", idRequest)
                 , 118000
                 );
         if (!result) result_comments = "error: " + result_comments + processing_comments;
+        else
+        {
+            if (!errors_free) result_comments = "Ok, response file: " + file_response;
+            else result_comments = "Ок";
+        }
         return result;
     }
     /*public static int handling_file_old(string file, List<clsConnections> link_connections, string reglament_connections, string[] folders, ReglamentLinker reglamentLinker, out string result_comments)
@@ -442,6 +450,60 @@ public class reglamentAOFOMS
             }
             result = clsLibrary.execQuery_PGR_insertList(ref link_connections, database,
                 "insert into buf_eir.buf_si (id_request,mcode,year,fam,im,ot,w,dr,n_rec,enp,smocode,vpolis,spolis,npolis,snils,DOCTYPE,DOCSER,DOCNUM,FORM,KVART,COMENTZ) values ",
+                values, 500);
+        }
+        catch (Exception e)
+        {
+            comments = "Ошибка вставки бизнес данных";
+        }
+        return result;
+    }
+    public static bool processingRequest_si_schema_1_1(ref List<clsConnections> link_connections, string database, string idRequest, ref object _object, string mnemonic, out int count_row, out string comments, int limit_transaction = 1)
+    //выполнение запроса на вставку данных из объекта
+    //возвращает -1 при ошибке
+    {
+        bool result = false;
+        comments = string.Empty;
+        List<string> values = new List<string>();
+        count_row = (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL.Length;
+        if (_object == null || count_row == 0)
+        {
+            comments = "Отсутствуют бизнес данные";
+            return result;
+        }
+        try
+        {
+            for (int row = 0; row < count_row; ++row)
+            {
+                values.Add(
+                    " '" + idRequest +
+                    "','" + mnemonic +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).HEADER.YEAR +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].FAM +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].IM +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].OT +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].W +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].DR.ToString("yyyyMMdd") +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].N_REC +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].ENP +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].SMOCODE +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].VPOLIS +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].SPOLIS +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].NPOLIS +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].SNILS +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].DOCTYPE +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].DOCSER +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].DOCNUM +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].FORM +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].KVART +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].COMENTZ +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].PHONE +
+                    "','" + (_object as Schemes_AOFOMS.si_schema_1_1.PROFIL).ZL[row].EMAIL +
+                    "'"
+                    );
+            }
+            result = clsLibrary.execQuery_PGR_insertList(ref link_connections, database,
+                "insert into buf_eir.buf_si (id_request,mcode,year,fam,im,ot,w,dr,n_rec,enp,smocode,vpolis,spolis,npolis,snils,DOCTYPE,DOCSER,DOCNUM,FORM,KVART,COMENTZ,PHONE,EMAIL) values ",
                 values, 500);
         }
         catch (Exception e)

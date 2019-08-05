@@ -40,6 +40,10 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\release\dll\lib_classesConections.dll</HintPath>
     </Reference>
+    <Reference Include="lib_classesLinker, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\release\dll\lib_classesLinker.dll</HintPath>
+    </Reference>
     <Reference Include="lib_metodsMain, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\release\dll\lib_metodsMain.dll</HintPath>
