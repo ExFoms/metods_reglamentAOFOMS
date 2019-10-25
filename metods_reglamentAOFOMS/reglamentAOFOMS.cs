@@ -9,7 +9,7 @@ public class reglamentAOFOMS
     public static bool handling_file(string file, List<clsConnections> link_connections, string[] folders, ReglamentLinker reglamentLinker, out string result_comments, out int count_row)
     {
         result_comments = string.Empty;
-        bool result = true; //!!! Исключительный случай - ошибка в методе, а не в разборе файла
+        bool result = true; //!!! Исключительный случай - ошибка в методе,  а не в разборе файла
         count_row = 0;
         //-------------------------------------
         string file_response = "";
